@@ -1,0 +1,156 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --color-bg: #0A0E1A;
+  --color-card: #121829;
+  --color-card-hover: #1A2238;
+  --color-blue: #00D4FF;
+  --color-red: #FF3366;
+  --color-green: #00FFA3;
+  --color-gold: #FFD700;
+  --color-purple: #A855F7;
+  --color-text-primary: #F1F5F9;
+  --color-text-secondary: #94A3B8;
+  --color-text-muted: #64748B;
+  --color-border: rgba(255, 255, 255, 0.08);
+  --color-blue-glow: rgba(0, 212, 255, 0.15);
+  --color-red-glow: rgba(255, 51, 102, 0.15);
+  --color-green-glow: rgba(0, 255, 163, 0.15);
+  --color-gold-glow: rgba(255, 215, 0, 0.15);
+}
+
+* {
+  -webkit-tap-highlight-color: transparent;
+}
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background-color: var(--color-bg);
+  color: var(--color-text-primary);
+  font-family: 'Rajdhani', -apple-system, BlinkMacSystemFont, sans-serif;
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+#root {
+  min-height: 100vh;
+  background: 
+    radial-gradient(ellipse at top left, rgba(0, 212, 255, 0.05) 0%, transparent 50%),
+    radial-gradient(ellipse at bottom right, rgba(255, 51, 102, 0.05) 0%, transparent 50%),
+    radial-gradient(ellipse at center top, rgba(168, 85, 247, 0.03) 0%, transparent 60%),
+    var(--color-bg);
+}
+
+@layer components {
+  .glass-card {
+    @apply bg-esports-card/60 backdrop-blur-xl border border-white/5 rounded-xl shadow-card;
+  }
+
+  .glass-card-hover {
+    @apply glass-card transition-all duration-300 hover:bg-esports-card/80 hover:border-white/10;
+  }
+
+  .glow-border-blue {
+    box-shadow: 0 0 0 1px rgba(0, 212, 255, 0.3), 0 0 20px rgba(0, 212, 255, 0.15);
+  }
+
+  .glow-border-red {
+    box-shadow: 0 0 0 1px rgba(255, 51, 102, 0.3), 0 0 20px rgba(255, 51, 102, 0.15);
+  }
+
+  .glow-border-green {
+    box-shadow: 0 0 0 1px rgba(0, 255, 163, 0.3), 0 0 20px rgba(0, 255, 163, 0.15);
+  }
+
+  .glow-border-gold {
+    box-shadow: 0 0 0 1px rgba(255, 215, 0, 0.3), 0 0 20px rgba(255, 215, 0, 0.15);
+  }
+
+  .text-gradient-blue {
+    background: linear-gradient(135deg, #00D4FF 0%, #0088FF 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .text-gradient-red {
+    background: linear-gradient(135deg, #FF3366 0%, #FF0088 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .text-gradient-gold {
+    background: linear-gradient(135deg, #FFD700 0%, #FFA500 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .font-display {
+    font-family: 'Orbitron', sans-serif;
+    letter-spacing: 0.02em;
+  }
+
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+
+  .number-display {
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: 'tnum';
+  }
+
+  .team-gradient-blue {
+    background: linear-gradient(135deg, rgba(0, 212, 255, 0.1) 0%, rgba(0, 136, 255, 0.05) 100%);
+  }
+
+  .team-gradient-red {
+    background: linear-gradient(135deg, rgba(255, 51, 102, 0.1) 0%, rgba(255, 0, 136, 0.05) 100%);
+  }
+
+  .divider-glow {
+    height: 1px;
+    background: linear-gradient(90deg, transparent 0%, rgba(0, 212, 255, 0.3) 20%, rgba(168, 85, 247, 0.3) 50%, rgba(255, 51, 102, 0.3) 80%, transparent 100%);
+  }
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.02);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+/* Animation for stamping numbers */
+@keyframes odometer {
+  from { transform: translateY(0); }
+  to { transform: translateY(-100%); }
+}
+
+.odometer-digit {
+  display: inline-block;
+  overflow: hidden;
+  vertical-align: bottom;
+}
