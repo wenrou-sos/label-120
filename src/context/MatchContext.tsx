@@ -90,6 +90,25 @@ export const MatchProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       if (state.data.status === 'live' && !state.isReplayMode) {
         const updates = generateIncrementalUpdate(state.data);
         dispatch({ type: 'UPDATE_DATA', payload: updates });
+
+        const nextGameTime = updates.gameTime ?? state.data.gameTime + 1;
+        const nextBlueScore = (updates.blueTeam?.score ?? state.data.blueTeam.score);
+        const nextRedScore = (updates.redTeam?.score ?? state.data.redTeam.score);
+        const MAX_GAME_SECONDS = 1800;
+        const MAX_SCORE = Math.ceil(state.data.totalGames / 2);
+
+        if (
+          nextGameTime >= MAX_GAME_SECONDS ||
+          nextBlueScore >= MAX_SCORE ||
+          nextRedScore >= MAX_SCORE
+        ) {
+          const winner =
+            (updates.blueTeam?.totalGold ?? state.data.blueTeam.totalGold) >=
+            (updates.redTeam?.totalGold ?? state.data.redTeam.totalGold)
+              ? 'blue'
+              : 'red';
+          dispatch({ type: 'FINISH_GAME', winner });
+        }
       }
     }, 1000);
 
@@ -106,6 +125,7 @@ export const MatchProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   }, [state.data.events.length, state.lastEventId]);
 
   const togglePause = useCallback(() => {
+    if (state.data.status === 'finished') return;
     const newStatus: MatchStatus = state.data.status === 'live' ? 'paused' : 'live';
     dispatch({ type: 'SET_STATUS', status: newStatus });
   }, [state.data.status]);

@@ -166,6 +166,16 @@ export const generateInitialMatchData = (): MatchData => {
 
   const baseTime = Date.now() - initialMinutes * 60 * 1000;
 
+  const buildFullStats = (
+    kills: number,
+    deaths: number,
+    assists: number,
+    towers: number,
+    dragons: number,
+    barons: number,
+    heralds: number
+  ) => ({ kills, deaths, assists, towers, dragons, barons, heralds });
+
   const events: MatchEvent[] = [
     {
       id: 'e1',
@@ -179,8 +189,8 @@ export const generateInitialMatchData = (): MatchData => {
       replayData: {
         blueGold: 15800,
         redGold: 15200,
-        blueStats: { kills: 1, towers: 0, dragons: 0 },
-        redStats: { kills: 0, towers: 0, dragons: 0 },
+        blueStats: buildFullStats(1, 0, 2, 0, 0, 0, 0),
+        redStats: buildFullStats(0, 1, 0, 0, 0, 0, 0),
       },
     },
     {
@@ -195,8 +205,8 @@ export const generateInitialMatchData = (): MatchData => {
       replayData: {
         blueGold: 24500,
         redGold: 23800,
-        blueStats: { kills: 3, dragons: 1 },
-        redStats: { kills: 2, dragons: 0 },
+        blueStats: buildFullStats(3, 2, 7, 0, 1, 0, 0),
+        redStats: buildFullStats(2, 3, 4, 0, 0, 0, 0),
       },
     },
     {
@@ -210,8 +220,8 @@ export const generateInitialMatchData = (): MatchData => {
       replayData: {
         blueGold: 32000,
         redGold: 30500,
-        blueStats: { kills: 5, heralds: 1, towers: 2 },
-        redStats: { kills: 4, heralds: 0, towers: 1 },
+        blueStats: buildFullStats(5, 4, 12, 2, 1, 0, 1),
+        redStats: buildFullStats(4, 5, 9, 1, 0, 0, 0),
       },
     },
     {
@@ -226,8 +236,8 @@ export const generateInitialMatchData = (): MatchData => {
       replayData: {
         blueGold: 36500,
         redGold: 34800,
-        blueStats: { kills: 7, towers: 3 },
-        redStats: { kills: 5, towers: 1 },
+        blueStats: buildFullStats(7, 5, 16, 3, 1, 0, 1),
+        redStats: buildFullStats(5, 7, 11, 1, 0, 0, 0),
       },
     },
     {
@@ -242,8 +252,8 @@ export const generateInitialMatchData = (): MatchData => {
       replayData: {
         blueGold: 43200,
         redGold: 40800,
-        blueStats: { kills: 10, dragons: 2, towers: 4 },
-        redStats: { kills: 6, dragons: 1, towers: 2 },
+        blueStats: buildFullStats(10, 6, 22, 4, 2, 0, 1),
+        redStats: buildFullStats(6, 10, 14, 2, 1, 0, 0),
       },
     },
     {
@@ -258,8 +268,8 @@ export const generateInitialMatchData = (): MatchData => {
       replayData: {
         blueGold: 49800,
         redGold: 48500,
-        blueStats: { kills: 11, towers: 5 },
-        redStats: { kills: 8, towers: 3 },
+        blueStats: buildFullStats(11, 7, 25, 5, 2, 0, 1),
+        redStats: buildFullStats(8, 11, 17, 3, 1, 0, 0),
       },
     },
     {
@@ -273,8 +283,8 @@ export const generateInitialMatchData = (): MatchData => {
       replayData: {
         blueGold: 55000,
         redGold: 53200,
-        blueStats: { kills: 12, towers: 5, dragons: 2 },
-        redStats: { kills: 8, towers: 3, dragons: 1 },
+        blueStats: buildFullStats(12, 8, 28, 5, 2, 0, 1),
+        redStats: buildFullStats(8, 12, 19, 3, 1, 0, 0),
       },
     },
   ];
@@ -364,6 +374,25 @@ export const generateIncrementalUpdate = (
     const list = eventDescriptions[randomType];
     const chosen = list[Math.floor(Math.random() * list.length)];
 
+    const snapBlue = {
+      kills: currentData.blueTeam.kills,
+      deaths: currentData.blueTeam.deaths,
+      assists: currentData.blueTeam.assists,
+      towers: currentData.blueTeam.towers,
+      dragons: currentData.blueTeam.dragons,
+      barons: currentData.blueTeam.barons,
+      heralds: currentData.blueTeam.heralds,
+    };
+    const snapRed = {
+      kills: currentData.redTeam.kills,
+      deaths: currentData.redTeam.deaths,
+      assists: currentData.redTeam.assists,
+      towers: currentData.redTeam.towers,
+      dragons: currentData.redTeam.dragons,
+      barons: currentData.redTeam.barons,
+      heralds: currentData.redTeam.heralds,
+    };
+
     const newEvent: MatchEvent = {
       id: `e-${Date.now()}`,
       type: randomType,
@@ -375,8 +404,8 @@ export const generateIncrementalUpdate = (
       replayData: {
         blueGold: currentData.blueTeam.totalGold,
         redGold: currentData.redTeam.totalGold,
-        blueStats: { kills: currentData.blueTeam.kills },
-        redStats: { kills: currentData.redTeam.kills },
+        blueStats: snapBlue,
+        redStats: snapRed,
       },
     };
 
