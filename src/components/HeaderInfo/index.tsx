@@ -1,7 +1,9 @@
-import React, { memo } from 'react';
+import React, { memo, useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useMatch } from '../../context/MatchContext';
 import { useAnimatedNumber } from '../../hooks/useAnimatedNumber';
+
+const SCROLL_THRESHOLD = 120;
 
 const ScoreNumber: React.FC<{ value: number; color: string }> = memo(({ value, color }) => {
   const animated = useAnimatedNumber(value, 400, 0);
@@ -50,6 +52,44 @@ const GameTime: React.FC<{ seconds: number; isPaused: boolean }> = memo(({ secon
 
 GameTime.displayName = 'GameTime';
 
+const MiniGameTime: React.FC<{ seconds: number; isPaused: boolean }> = memo(({ seconds, isPaused }) => {
+  const mins = Math.floor(seconds / 60);
+  const secs = Math.floor(seconds % 60);
+  const animatedMins = useAnimatedNumber(mins, 300, 0);
+  const animatedSecs = useAnimatedNumber(secs, 300, 0);
+
+  return (
+    <motion.div
+      className="relative flex items-center"
+      animate={isPaused ? { opacity: [1, 0.5, 1] } : {}}
+      transition={{ repeat: Infinity, duration: 1.5 }}
+    >
+      <span className="font-display font-bold text-base md:text-lg tracking-wider number-display text-white">
+        {`${animatedMins.toString().padStart(2, '0')}:${animatedSecs.toString().padStart(2, '0')}`}
+      </span>
+    </motion.div>
+  );
+});
+
+MiniGameTime.displayName = 'MiniGameTime';
+
+const MiniScoreNumber: React.FC<{ value: number; color: string }> = memo(({ value, color }) => {
+  const animated = useAnimatedNumber(value, 300, 0);
+  return (
+    <motion.span
+      key={value}
+      initial={{ scale: 1.1, opacity: 0.7 }}
+      animate={{ scale: 1, opacity: 1 }}
+      transition={{ duration: 0.25 }}
+      className={`font-display font-black text-xl md:text-2xl number-display ${color}`}
+    >
+      {animated}
+    </motion.span>
+  );
+});
+
+MiniScoreNumber.displayName = 'MiniScoreNumber';
+
 export const HeaderInfo: React.FC = () => {
   const { data, togglePause } = useMatch();
   const { blueTeam, redTeam, status, currentGame, totalGames, format, gameTime, title } = data;
@@ -57,7 +97,71 @@ export const HeaderInfo: React.FC = () => {
   const isFinished = status === 'finished';
   const isDecisive = currentGame === totalGames;
 
+  const [isScrolled, setIsScrolled] = useState(false);
+
+  useEffect(() => {
+    const handleScroll = () => {
+      setIsScrolled(window.scrollY > SCROLL_THRESHOLD);
+    };
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    handleScroll();
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
+
+  const renderMiniHeader = () => (
+    <AnimatePresence>
+      {isScrolled && (
+        <motion.div
+          initial={{ y: -60, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          exit={{ y: -60, opacity: 0 }}
+          transition={{ duration: 0.3, ease: 'easeOut' }}
+          className="fixed top-0 left-0 right-0 z-50"
+        >
+          <div className="glass-card mx-2 md:mx-4 mt-2 px-3 md:px-5 py-2 md:py-2.5 flex items-center justify-between">
+            <div className="flex items-center gap-2 md:gap-3 flex-1 min-w-0">
+              <span className="text-base md:text-xl flex-shrink-0">{blueTeam.logo}</span>
+              <span className="text-esports-blue font-bold text-xs md:text-sm font-display tracking-wider truncate">
+                {blueTeam.name}
+              </span>
+              <MiniScoreNumber value={blueTeam.score} color="text-esports-blue" />
+            </div>
+
+            <div className="flex items-center gap-2 md:gap-4 px-2 md:px-3 flex-shrink-0">
+              <div className="flex items-center gap-1.5">
+                <span
+                  className={`w-1.5 h-1.5 md:w-2 md:h-2 rounded-full ${
+                    isFinished ? 'bg-esports-green' : 'bg-esports-red animate-pulse'
+                  }`}
+                />
+                <span
+                  className={`text-[9px] md:text-[10px] font-bold tracking-wider font-display ${
+                    isFinished ? 'text-esports-green' : 'text-esports-red'
+                  }`}
+                >
+                  {isFinished ? 'END' : 'LIVE'}
+                </span>
+              </div>
+              <div className="w-px h-4 md:h-5 bg-white/10" />
+              <MiniGameTime seconds={gameTime} isPaused={isPaused && !isFinished} />
+            </div>
+
+            <div className="flex items-center gap-2 md:gap-3 flex-1 min-w-0 justify-end">
+              <MiniScoreNumber value={redTeam.score} color="text-esports-red" />
+              <span className="text-esports-red font-bold text-xs md:text-sm font-display tracking-wider truncate">
+                {redTeam.name}
+              </span>
+              <span className="text-base md:text-xl flex-shrink-0">{redTeam.logo}</span>
+            </div>
+          </div>
+        </motion.div>
+      )}
+    </AnimatePresence>
+  );
+
   return (
+    <>
+      {renderMiniHeader()}
     <motion.header
       initial={{ y: -20, opacity: 0 }}
       animate={{ y: 0, opacity: 1 }}
@@ -208,5 +312,6 @@ export const HeaderInfo: React.FC = () => {
         )}
       </AnimatePresence>
     </motion.header>
+    </>
   );
 };
