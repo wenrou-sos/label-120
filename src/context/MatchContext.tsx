@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useReducer, useEffect, useRef, useCallback, ReactNode } from 'react';
 import type { MatchData, MatchEvent, MatchStatus } from '../types/match';
-import { generateInitialMatchData, generateIncrementalUpdate, generateGameEndData } from '../data/mockData';
+import { generateInitialMatchData, generateIncrementalUpdate, generateGameEndData, generateNextBPStep } from '../data/mockData';
 
 interface MatchState {
   data: MatchData;
@@ -15,12 +15,16 @@ type MatchAction =
   | { type: 'START_REPLAY'; event: MatchEvent }
   | { type: 'EXIT_REPLAY' }
   | { type: 'MARK_EVENT_SEEN'; eventId: string }
-  | { type: 'FINISH_GAME'; winner: 'blue' | 'red' };
+  | { type: 'FINISH_GAME'; winner: 'blue' | 'red' }
+  | { type: 'BP_TICK' }
+  | { type: 'BP_STEP' }
+  | { type: 'BP_COMPLETE' };
 
 interface MatchContextType extends MatchState {
   togglePause: () => void;
   startReplay: (event: MatchEvent) => void;
   exitReplay: () => void;
+  advanceBPStep: () => void;
 }
 
 const MatchContext = createContext<MatchContextType | null>(null);
@@ -71,6 +75,68 @@ const matchReducer = (state: MatchState, action: MatchAction): MatchState => {
         ...state,
         data: generateGameEndData(action.winner, state.data),
       };
+    case 'BP_TICK': {
+      if (!state.data.banPick || state.data.banPick.isComplete) return state;
+      const currentTimeLeft = state.data.banPick.timeLeft;
+      if (currentTimeLeft <= 1) {
+        const nextBP = generateNextBPStep(state.data.banPick);
+        if (nextBP.isComplete) {
+          const liveInitialData = generateInitialMatchData();
+          return {
+            ...state,
+            data: {
+              ...liveInitialData,
+              matchId: state.data.matchId,
+              title: state.data.title,
+              format: state.data.format,
+              currentGame: state.data.currentGame,
+              totalGames: state.data.totalGames,
+              blueTeam: { ...state.data.blueTeam, score: state.data.blueTeam.score },
+              redTeam: { ...state.data.redTeam, score: state.data.redTeam.score },
+              status: 'live',
+              banPick: nextBP,
+            },
+          };
+        }
+        return {
+          ...state,
+          data: { ...state.data, banPick: nextBP },
+        };
+      }
+      return {
+        ...state,
+        data: {
+          ...state.data,
+          banPick: { ...state.data.banPick, timeLeft: currentTimeLeft - 1 },
+        },
+      };
+    }
+    case 'BP_STEP': {
+      if (!state.data.banPick || state.data.banPick.isComplete) return state;
+      const nextBP = generateNextBPStep(state.data.banPick);
+      if (nextBP.isComplete) {
+        const liveInitialData = generateInitialMatchData();
+        return {
+          ...state,
+          data: {
+            ...liveInitialData,
+            matchId: state.data.matchId,
+            title: state.data.title,
+            format: state.data.format,
+            currentGame: state.data.currentGame,
+            totalGames: state.data.totalGames,
+            blueTeam: { ...state.data.blueTeam, score: state.data.blueTeam.score },
+            redTeam: { ...state.data.redTeam, score: state.data.redTeam.score },
+            status: 'live',
+            banPick: nextBP,
+          },
+        };
+      }
+      return {
+        ...state,
+        data: { ...state.data, banPick: nextBP },
+      };
+    }
     default:
       return state;
   }
@@ -87,7 +153,9 @@ export const MatchProvider: React.FC<{ children: ReactNode }> = ({ children }) =
 
   useEffect(() => {
     const timer = setInterval(() => {
-      if (state.data.status === 'live' && !state.isReplayMode) {
+      if (state.data.status === 'ban_pick' && state.data.banPick && !state.data.banPick.isComplete) {
+        dispatch({ type: 'BP_TICK' });
+      } else if (state.data.status === 'live' && !state.isReplayMode) {
         const updates = generateIncrementalUpdate(state.data);
         dispatch({ type: 'UPDATE_DATA', payload: updates });
 
@@ -138,6 +206,10 @@ export const MatchProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     dispatch({ type: 'EXIT_REPLAY' });
   }, []);
 
+  const advanceBPStep = useCallback(() => {
+    dispatch({ type: 'BP_STEP' });
+  }, []);
+
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === 'e') {
@@ -162,6 +234,7 @@ export const MatchProvider: React.FC<{ children: ReactNode }> = ({ children }) =
         togglePause,
         startReplay,
         exitReplay,
+        advanceBPStep,
       }}
     >
       {children}

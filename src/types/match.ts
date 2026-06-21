@@ -1,4 +1,35 @@
-export type MatchStatus = 'live' | 'paused' | 'finished';
+export type MatchStatus = 'ban_pick' | 'live' | 'paused' | 'finished';
+
+export type BPActionType = 'ban' | 'pick';
+
+export interface Champion {
+  id: string;
+  name: string;
+  icon: string;
+  recommendedRoles: PlayerRole[];
+}
+
+export interface BPSlot {
+  id: string;
+  team: 'blue' | 'red';
+  action: BPActionType;
+  phase: number;
+  order: number;
+  championId: string | null;
+  completed: boolean;
+}
+
+export interface BanPickState {
+  currentSlotIndex: number;
+  slots: BPSlot[];
+  blueBans: string[];
+  redBans: string[];
+  bluePicks: { championId: string; role: PlayerRole }[];
+  redPicks: { championId: string; role: PlayerRole }[];
+  timeLeft: number;
+  champions: Champion[];
+  isComplete: boolean;
+}
 
 export interface Team {
   id: string;
@@ -117,6 +148,7 @@ export interface MatchData {
   mvp?: MVPData;
   highlights?: Highlight[];
   winner?: 'blue' | 'red';
+  banPick?: BanPickState;
 }
 
 export type DataUpdateType =

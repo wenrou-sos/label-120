@@ -1,16 +1,38 @@
-import type { MatchData, Player, GoldPoint, MatchEvent, Item } from '../types/match';
+import type { MatchData, Player, GoldPoint, MatchEvent, Item, Champion, BPSlot, BanPickState, PlayerRole } from '../types/match';
 
-const CHAMPIONS = [
-  { name: '亚索', icon: '⚔️' },
-  { name: '盲僧', icon: '👊' },
-  { name: '辛德拉', icon: '🔮' },
-  { name: '卡莎', icon: '🏹' },
-  { name: '锤石', icon: '⛓️' },
-  { name: '卡蜜尔', icon: '🗡️' },
-  { name: '薇古丝', icon: '😈' },
-  { name: '芮尔', icon: '🐎' },
-  { name: '卢锡安', icon: '🔫' },
-  { name: '纳美', icon: '🌊' },
+const CHAMPION_POOL: Champion[] = [
+  { id: 'c1', name: '亚索', icon: '⚔️', recommendedRoles: ['mid', 'top'] },
+  { id: 'c2', name: '盲僧', icon: '👊', recommendedRoles: ['jungle'] },
+  { id: 'c3', name: '辛德拉', icon: '🔮', recommendedRoles: ['mid'] },
+  { id: 'c4', name: '卡莎', icon: '🏹', recommendedRoles: ['adc'] },
+  { id: 'c5', name: '锤石', icon: '⛓️', recommendedRoles: ['support'] },
+  { id: 'c6', name: '卡蜜尔', icon: '🗡️', recommendedRoles: ['top'] },
+  { id: 'c7', name: '薇古丝', icon: '😈', recommendedRoles: ['mid', 'jungle'] },
+  { id: 'c8', name: '芮尔', icon: '🐎', recommendedRoles: ['support', 'jungle'] },
+  { id: 'c9', name: '卢锡安', icon: '🔫', recommendedRoles: ['adc', 'mid'] },
+  { id: 'c10', name: '纳美', icon: '🌊', recommendedRoles: ['support'] },
+  { id: 'c11', name: '男枪', icon: '🔫', recommendedRoles: ['adc'] },
+  { id: 'c12', name: '杰斯', icon: '⚡', recommendedRoles: ['top', 'mid'] },
+  { id: 'c13', name: '蕾欧娜', icon: '☀️', recommendedRoles: ['support'] },
+  { id: 'c14', name: '李青', icon: '🥋', recommendedRoles: ['jungle'] },
+  { id: 'c15', name: '格温', icon: '🧸', recommendedRoles: ['top', 'jungle'] },
+  { id: 'c16', name: '佛耶戈', icon: '👑', recommendedRoles: ['jungle'] },
+  { id: 'c17', name: '泽丽', icon: '💎', recommendedRoles: ['adc'] },
+  { id: 'c18', name: '悠米', icon: '🐱', recommendedRoles: ['support'] },
+  { id: 'c19', name: '永恩', icon: '🗡️', recommendedRoles: ['top', 'mid'] },
+  { id: 'c20', name: '破败王', icon: '💀', recommendedRoles: ['jungle'] },
+  { id: 'c21', name: '阿卡丽', icon: '🗡️', recommendedRoles: ['mid', 'top'] },
+  { id: 'c22', name: '艾希', icon: '🏹', recommendedRoles: ['adc'] },
+  { id: 'c23', name: '泰坦', icon: '⚓', recommendedRoles: ['support'] },
+  { id: 'c24', name: '蔚', icon: '👊', recommendedRoles: ['jungle'] },
+  { id: 'c25', name: '奥恩', icon: '🔨', recommendedRoles: ['top'] },
+  { id: 'c26', name: '阿狸', icon: '🦊', recommendedRoles: ['mid'] },
+  { id: 'c27', name: '金克丝', icon: '💥', recommendedRoles: ['adc'] },
+  { id: 'c28', name: '洛', icon: '🦚', recommendedRoles: ['support'] },
+  { id: 'c29', name: '赵信', icon: '🔱', recommendedRoles: ['jungle'] },
+  { id: 'c30', name: '剑姬', icon: '⚔️', recommendedRoles: ['top'] },
+  { id: 'c31', name: '发条', icon: '🎻', recommendedRoles: ['mid'] },
+  { id: 'c32', name: '霞', icon: '🦅', recommendedRoles: ['adc'] },
 ];
 
 const ITEMS: Item[] = [
@@ -58,7 +80,7 @@ const generatePlayer = (
   championIdx: number,
   baseGold: number
 ): Player => {
-  const champ = CHAMPIONS[championIdx];
+  const champ = CHAMPION_POOL[championIdx];
   const isBlue = teamId === 'blue';
   const bgColor = isBlue ? '#00D4FF' : '#FF3366';
   return {
@@ -300,13 +322,14 @@ export const generateInitialMatchData = (): MatchData => {
     format: 'BO5',
     currentGame: 3,
     totalGames: 5,
-    gameTime: initialMinutes * 60,
-    status: 'live',
+    gameTime: 0,
+    status: 'ban_pick',
     blueTeam,
     redTeam,
     players,
     goldHistory,
     events,
+    banPick: generateInitialBPState(),
   };
 };
 
@@ -497,4 +520,117 @@ export const generateGameEndData = (winner: 'blue' | 'red', currentData: MatchDa
     },
     highlights,
   };
+};
+
+const BP_SEQUENCE: { team: 'blue' | 'red'; action: 'ban' | 'pick'; phase: number }[] = [
+  { team: 'blue', action: 'ban', phase: 1 },
+  { team: 'red', action: 'ban', phase: 1 },
+  { team: 'blue', action: 'ban', phase: 1 },
+  { team: 'red', action: 'ban', phase: 1 },
+  { team: 'blue', action: 'ban', phase: 1 },
+  { team: 'red', action: 'ban', phase: 1 },
+  { team: 'blue', action: 'pick', phase: 1 },
+  { team: 'red', action: 'pick', phase: 1 },
+  { team: 'red', action: 'pick', phase: 1 },
+  { team: 'blue', action: 'pick', phase: 1 },
+  { team: 'blue', action: 'pick', phase: 1 },
+  { team: 'red', action: 'pick', phase: 1 },
+  { team: 'blue', action: 'ban', phase: 2 },
+  { team: 'red', action: 'ban', phase: 2 },
+  { team: 'red', action: 'ban', phase: 2 },
+  { team: 'blue', action: 'ban', phase: 2 },
+  { team: 'red', action: 'pick', phase: 2 },
+  { team: 'blue', action: 'pick', phase: 2 },
+  { team: 'blue', action: 'pick', phase: 2 },
+  { team: 'red', action: 'pick', phase: 2 },
+];
+
+export const generateInitialBPState = (): BanPickState => {
+  const slots: BPSlot[] = BP_SEQUENCE.map((seq, idx) => ({
+    id: `bp-${idx}`,
+    team: seq.team,
+    action: seq.action,
+    phase: seq.phase,
+    order: idx,
+    championId: null,
+    completed: false,
+  }));
+
+  return {
+    currentSlotIndex: 0,
+    slots,
+    blueBans: [],
+    redBans: [],
+    bluePicks: [],
+    redPicks: [],
+    timeLeft: 30,
+    champions: CHAMPION_POOL,
+    isComplete: false,
+  };
+};
+
+export const getChampionById = (id: string): Champion | undefined => {
+  return CHAMPION_POOL.find((c) => c.id === id);
+};
+
+export const generateNextBPStep = (state: BanPickState): BanPickState => {
+  if (state.isComplete) return state;
+
+  const currentSlot = state.slots[state.currentSlotIndex];
+  if (!currentSlot) {
+    return { ...state, isComplete: true };
+  }
+
+  const usedChampionIds = [...state.blueBans, ...state.redBans, ...state.bluePicks.map((p) => p.championId), ...state.redPicks.map((p) => p.championId)];
+  const availableChampions = state.champions.filter((c) => !usedChampionIds.includes(c.id));
+
+  if (availableChampions.length === 0) {
+    return { ...state, isComplete: true };
+  }
+
+  const chosenChampion = availableChampions[Math.floor(Math.random() * availableChampions.length)];
+
+  const newSlots = state.slots.map((slot, idx) =>
+    idx === state.currentSlotIndex ? { ...slot, championId: chosenChampion.id, completed: true } : slot
+  );
+
+  const newState: BanPickState = {
+    ...state,
+    slots: newSlots,
+    timeLeft: 30,
+  };
+
+  if (currentSlot.action === 'ban') {
+    if (currentSlot.team === 'blue') {
+      newState.blueBans = [...state.blueBans, chosenChampion.id];
+    } else {
+      newState.redBans = [...state.redBans, chosenChampion.id];
+    }
+  } else {
+    const nextRole: PlayerRole | null = getNextPickRole(currentSlot.team, state);
+    const role = nextRole || 'top';
+    if (currentSlot.team === 'blue') {
+      newState.bluePicks = [...state.bluePicks, { championId: chosenChampion.id, role }];
+    } else {
+      newState.redPicks = [...state.redPicks, { championId: chosenChampion.id, role }];
+    }
+  }
+
+  const nextIndex = state.currentSlotIndex + 1;
+  if (nextIndex >= state.slots.length) {
+    newState.isComplete = true;
+    newState.currentSlotIndex = state.slots.length;
+  } else {
+    newState.currentSlotIndex = nextIndex;
+  }
+
+  return newState;
+};
+
+const ROLE_ORDER: PlayerRole[] = ['top', 'jungle', 'mid', 'adc', 'support'];
+
+const getNextPickRole = (team: 'blue' | 'red', state: BanPickState): PlayerRole | null => {
+  const picks = team === 'blue' ? state.bluePicks : state.redPicks;
+  const usedRoles = picks.map((p) => p.role);
+  return ROLE_ORDER.find((r) => !usedRoles.includes(r)) || null;
 };

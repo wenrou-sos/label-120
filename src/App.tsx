@@ -7,10 +7,12 @@ import { StatsCompare } from './components/StatsCompare';
 import { PlayerCards } from './components/PlayerCards';
 import { EventTimeline } from './components/EventTimeline';
 import { ResultPanel } from './components/ResultPanel';
+import { BanPick } from './components/BanPick';
 
 const DashboardContent: React.FC = () => {
   const { data } = useMatch();
   const isFinished = data.status === 'finished';
+  const isBanPick = data.status === 'ban_pick';
 
   useEffect(() => {
     if ('ontouchstart' in window) {
@@ -21,7 +23,17 @@ const DashboardContent: React.FC = () => {
   return (
     <div className="min-h-screen pb-10">
       <AnimatePresence mode="wait">
-        {!isFinished ? (
+        {isBanPick ? (
+          <motion.div
+            key="banpick"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0, y: -20 }}
+            transition={{ duration: 0.4 }}
+          >
+            <BanPick />
+          </motion.div>
+        ) : !isFinished ? (
           <motion.div
             key="live"
             initial={{ opacity: 0 }}
