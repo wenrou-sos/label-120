@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useReducer, useEffect, useRef, useCallback, ReactNode } from 'react';
 import type { MatchData, MatchEvent, MatchStatus } from '../types/match';
-import { generateInitialMatchData, generateIncrementalUpdate, generateGameEndData, generateNextBPStep } from '../data/mockData';
+import { generateInitialMatchData, generateIncrementalUpdate, generateGameEndData, generateNextBPStep, generateLiveDataFromBP } from '../data/mockData';
 
 interface MatchState {
   data: MatchData;
@@ -17,14 +17,14 @@ type MatchAction =
   | { type: 'MARK_EVENT_SEEN'; eventId: string }
   | { type: 'FINISH_GAME'; winner: 'blue' | 'red' }
   | { type: 'BP_TICK' }
-  | { type: 'BP_STEP' }
+  | { type: 'BP_STEP'; championId?: string }
   | { type: 'BP_COMPLETE' };
 
 interface MatchContextType extends MatchState {
   togglePause: () => void;
   startReplay: (event: MatchEvent) => void;
   exitReplay: () => void;
-  advanceBPStep: () => void;
+  advanceBPStep: (championId?: string) => void;
 }
 
 const MatchContext = createContext<MatchContextType | null>(null);
@@ -81,19 +81,14 @@ const matchReducer = (state: MatchState, action: MatchAction): MatchState => {
       if (currentTimeLeft <= 1) {
         const nextBP = generateNextBPStep(state.data.banPick);
         if (nextBP.isComplete) {
-          const liveInitialData = generateInitialMatchData();
+          const liveData = generateLiveDataFromBP(nextBP, state.data);
           return {
             ...state,
             data: {
-              ...liveInitialData,
-              matchId: state.data.matchId,
-              title: state.data.title,
-              format: state.data.format,
-              currentGame: state.data.currentGame,
-              totalGames: state.data.totalGames,
-              blueTeam: { ...state.data.blueTeam, score: state.data.blueTeam.score },
-              redTeam: { ...state.data.redTeam, score: state.data.redTeam.score },
-              status: 'live',
+              ...state.data,
+              ...liveData,
+              blueTeam: { ...state.data.blueTeam, ...liveData.blueTeam, score: state.data.blueTeam.score },
+              redTeam: { ...state.data.redTeam, ...liveData.redTeam, score: state.data.redTeam.score },
               banPick: nextBP,
             },
           };
@@ -113,21 +108,16 @@ const matchReducer = (state: MatchState, action: MatchAction): MatchState => {
     }
     case 'BP_STEP': {
       if (!state.data.banPick || state.data.banPick.isComplete) return state;
-      const nextBP = generateNextBPStep(state.data.banPick);
+      const nextBP = generateNextBPStep(state.data.banPick, action.championId);
       if (nextBP.isComplete) {
-        const liveInitialData = generateInitialMatchData();
+        const liveData = generateLiveDataFromBP(nextBP, state.data);
         return {
           ...state,
           data: {
-            ...liveInitialData,
-            matchId: state.data.matchId,
-            title: state.data.title,
-            format: state.data.format,
-            currentGame: state.data.currentGame,
-            totalGames: state.data.totalGames,
-            blueTeam: { ...state.data.blueTeam, score: state.data.blueTeam.score },
-            redTeam: { ...state.data.redTeam, score: state.data.redTeam.score },
-            status: 'live',
+            ...state.data,
+            ...liveData,
+            blueTeam: { ...state.data.blueTeam, ...liveData.blueTeam, score: state.data.blueTeam.score },
+            redTeam: { ...state.data.redTeam, ...liveData.redTeam, score: state.data.redTeam.score },
             banPick: nextBP,
           },
         };
@@ -206,8 +196,8 @@ export const MatchProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     dispatch({ type: 'EXIT_REPLAY' });
   }, []);
 
-  const advanceBPStep = useCallback(() => {
-    dispatch({ type: 'BP_STEP' });
+  const advanceBPStep = useCallback((championId?: string) => {
+    dispatch({ type: 'BP_STEP', championId });
   }, []);
 
   useEffect(() => {

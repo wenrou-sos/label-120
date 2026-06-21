@@ -573,7 +573,7 @@ export const getChampionById = (id: string): Champion | undefined => {
   return CHAMPION_POOL.find((c) => c.id === id);
 };
 
-export const generateNextBPStep = (state: BanPickState): BanPickState => {
+export const generateNextBPStep = (state: BanPickState, championId?: string): BanPickState => {
   if (state.isComplete) return state;
 
   const currentSlot = state.slots[state.currentSlotIndex];
@@ -588,7 +588,13 @@ export const generateNextBPStep = (state: BanPickState): BanPickState => {
     return { ...state, isComplete: true };
   }
 
-  const chosenChampion = availableChampions[Math.floor(Math.random() * availableChampions.length)];
+  let chosenChampion: Champion;
+  if (championId) {
+    const explicitChampion = availableChampions.find((c) => c.id === championId);
+    chosenChampion = explicitChampion || availableChampions[Math.floor(Math.random() * availableChampions.length)];
+  } else {
+    chosenChampion = availableChampions[Math.floor(Math.random() * availableChampions.length)];
+  }
 
   const newSlots = state.slots.map((slot, idx) =>
     idx === state.currentSlotIndex ? { ...slot, championId: chosenChampion.id, completed: true } : slot
@@ -607,7 +613,7 @@ export const generateNextBPStep = (state: BanPickState): BanPickState => {
       newState.redBans = [...state.redBans, chosenChampion.id];
     }
   } else {
-    const nextRole: PlayerRole | null = getNextPickRole(currentSlot.team, state);
+    const nextRole: PlayerRole | null = getNextPickRole(currentSlot.team, state, chosenChampion);
     const role = nextRole || 'top';
     if (currentSlot.team === 'blue') {
       newState.bluePicks = [...state.bluePicks, { championId: chosenChampion.id, role }];
@@ -629,8 +635,135 @@ export const generateNextBPStep = (state: BanPickState): BanPickState => {
 
 const ROLE_ORDER: PlayerRole[] = ['top', 'jungle', 'mid', 'adc', 'support'];
 
-const getNextPickRole = (team: 'blue' | 'red', state: BanPickState): PlayerRole | null => {
+const getNextPickRole = (team: 'blue' | 'red', state: BanPickState, champion?: Champion): PlayerRole | null => {
   const picks = team === 'blue' ? state.bluePicks : state.redPicks;
   const usedRoles = picks.map((p) => p.role);
+
+  if (champion && champion.recommendedRoles && champion.recommendedRoles.length > 0) {
+    for (const recommendedRole of champion.recommendedRoles) {
+      if (!usedRoles.includes(recommendedRole)) {
+        return recommendedRole;
+      }
+    }
+  }
+
   return ROLE_ORDER.find((r) => !usedRoles.includes(r)) || null;
+};
+
+const BLUE_PLAYER_NAMES: Record<PlayerRole, string> = {
+  top: 'Xiaohu',
+  jungle: 'Wei',
+  mid: 'Yuekai',
+  adc: 'GALA',
+  support: 'Ming',
+};
+
+const RED_PLAYER_NAMES: Record<PlayerRole, string> = {
+  top: 'Ale',
+  jungle: 'Jiejie',
+  mid: 'Scout',
+  adc: 'Viper',
+  support: 'Meiko',
+};
+
+const generatePlayerForLiveStart = (
+  id: string,
+  teamId: string,
+  name: string,
+  role: PlayerRole,
+  champion: Champion
+): Player => {
+  const isBlue = teamId === 'blue';
+  const bgColor = isBlue ? '#00D4FF' : '#FF3366';
+  const baseGold = role === 'support' ? 400 : 500;
+  return {
+    id,
+    teamId,
+    name,
+    avatar: generateLocalAvatar(id, bgColor),
+    champion: champion.name,
+    championIcon: champion.icon,
+    kills: 0,
+    deaths: 0,
+    assists: 0,
+    cs: 0,
+    gold: baseGold,
+    goldDiff: 0,
+    items: [],
+    role,
+    level: 1,
+    damage: 0,
+    damageTaken: 0,
+    visionScore: 0,
+  };
+};
+
+const generateEmptyGoldHistory = (): GoldPoint[] => {
+  return [
+    {
+      time: 0,
+      blueGold: 500 * 5,
+      redGold: 500 * 5,
+      diff: 0,
+    },
+  ];
+};
+
+export const generateLiveDataFromBP = (bp: BanPickState, existingData: MatchData): Partial<MatchData> => {
+  const players: Player[] = [];
+
+  ROLE_ORDER.forEach((role, idx) => {
+    const bluePick = bp.bluePicks.find((p) => p.role === role);
+    const redPick = bp.redPicks.find((p) => p.role === role);
+
+    if (bluePick) {
+      const champ = getChampionById(bluePick.championId);
+      if (champ) {
+        players.push(
+          generatePlayerForLiveStart(`p${idx + 1}`, 'blue', BLUE_PLAYER_NAMES[role], role, champ)
+        );
+      }
+    }
+
+    if (redPick) {
+      const champ = getChampionById(redPick.championId);
+      if (champ) {
+        players.push(
+          generatePlayerForLiveStart(`p${idx + 6}`, 'red', RED_PLAYER_NAMES[role], role, champ)
+        );
+      }
+    }
+  });
+
+  const initialGold = 500 * 5;
+
+  return {
+    gameTime: 0,
+    status: 'live',
+    players,
+    goldHistory: generateEmptyGoldHistory(),
+    events: [],
+    blueTeam: {
+      ...existingData.blueTeam,
+      totalGold: initialGold,
+      kills: 0,
+      deaths: 0,
+      assists: 0,
+      towers: 0,
+      dragons: 0,
+      barons: 0,
+      heralds: 0,
+    },
+    redTeam: {
+      ...existingData.redTeam,
+      totalGold: initialGold,
+      kills: 0,
+      deaths: 0,
+      assists: 0,
+      towers: 0,
+      dragons: 0,
+      barons: 0,
+      heralds: 0,
+    },
+  };
 };

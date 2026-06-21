@@ -296,7 +296,7 @@ export const BanPick: React.FC = () => {
                       whileHover={isAvailable ? { scale: 1.05, y: -2 } : {}}
                       className={`relative aspect-square rounded-lg border flex flex-col items-center justify-center p-1 transition-all cursor-pointer ${borderClass} ${bgClass} ${!isAvailable ? 'opacity-50 grayscale' : ''}`}
                       onClick={() => {
-                        if (isAvailable) advanceBPStep();
+                        if (isAvailable) advanceBPStep(champion.id);
                       }}
                     >
                       <span className={`text-lg md:text-2xl ${!isAvailable ? 'grayscale' : ''}`}>{champion.icon}</span>
@@ -385,7 +385,7 @@ export const BanPick: React.FC = () => {
 
         <div className="mt-4 flex justify-center">
           <button
-            onClick={advanceBPStep}
+            onClick={() => advanceBPStep()}
             disabled={banPick.isComplete}
             className="px-4 py-2 rounded-lg bg-esports-purple/20 hover:bg-esports-purple/30 text-esports-purple border border-esports-purple/40 disabled:opacity-40 disabled:cursor-not-allowed font-display text-xs md:text-sm transition-colors"
           >
