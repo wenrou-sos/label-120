@@ -11,7 +11,7 @@ interface PlayerCardProps {
   side: 'blue' | 'red';
   isLeading: boolean;
   index: number;
-  onLongPress?: (player: Player) => void;
+  onLongPress?: (player: Player, cardEl: HTMLElement) => void;
   isComparing?: boolean;
 }
 
@@ -31,9 +31,11 @@ AnimatedStat.displayName = 'AnimatedStat';
 const PlayerCard: React.FC<PlayerCardProps> = memo(({ player, side, isLeading, index, onLongPress, isComparing }) => {
   const [expanded, setExpanded] = useState(false);
   const [pressProgress, setPressProgress] = useState(0);
+  const cardRef = useRef<HTMLDivElement>(null);
   const pressTimerRef = useRef<number | null>(null);
   const pressStartTimeRef = useRef<number>(0);
   const longPressTriggeredRef = useRef(false);
+  const shouldBlockClickRef = useRef(false);
   const LONG_PRESS_DURATION = 500;
 
   const isBlue = side === 'blue';
@@ -51,13 +53,13 @@ const PlayerCard: React.FC<PlayerCardProps> = memo(({ player, side, isLeading, i
       pressTimerRef.current = null;
     }
     setPressProgress(0);
-    longPressTriggeredRef.current = false;
   }, []);
 
   const startPressTimer = useCallback(() => {
+    longPressTriggeredRef.current = false;
+    shouldBlockClickRef.current = false;
     clearPressTimer();
     pressStartTimeRef.current = performance.now();
-    longPressTriggeredRef.current = false;
 
     const tick = () => {
       const elapsed = performance.now() - pressStartTimeRef.current;
@@ -66,8 +68,9 @@ const PlayerCard: React.FC<PlayerCardProps> = memo(({ player, side, isLeading, i
 
       if (progress >= 1 && !longPressTriggeredRef.current) {
         longPressTriggeredRef.current = true;
-        if (onLongPress) {
-          onLongPress(player);
+        shouldBlockClickRef.current = true;
+        if (onLongPress && cardRef.current) {
+          onLongPress(player, cardRef.current);
         }
         clearPressTimer();
         return;
@@ -81,15 +84,19 @@ const PlayerCard: React.FC<PlayerCardProps> = memo(({ player, side, isLeading, i
     pressTimerRef.current = requestAnimationFrame(tick);
   }, [player, onLongPress, clearPressTimer]);
 
+  const handleMouseUp = useCallback(() => {
+    clearPressTimer();
+  }, [clearPressTimer]);
+
   const handleClick = useCallback((e: React.MouseEvent) => {
-    if (longPressTriggeredRef.current) {
+    if (shouldBlockClickRef.current) {
       e.preventDefault();
       e.stopPropagation();
-      clearPressTimer();
+      shouldBlockClickRef.current = false;
       return;
     }
     setExpanded(!expanded);
-  }, [expanded, clearPressTimer]);
+  }, [expanded]);
 
   const handleTouchStart = useCallback(() => {
     startPressTimer();
@@ -111,10 +118,11 @@ const PlayerCard: React.FC<PlayerCardProps> = memo(({ player, side, isLeading, i
       className="relative w-full"
     >
       <motion.div
+        ref={cardRef}
         layout
         onClick={handleClick}
         onMouseDown={startPressTimer}
-        onMouseUp={clearPressTimer}
+        onMouseUp={handleMouseUp}
         onMouseLeave={clearPressTimer}
         onTouchStart={handleTouchStart}
         onTouchEnd={handleTouchEnd}
@@ -329,6 +337,7 @@ const ROLE_ORDER: PlayerRole[] = ['top', 'jungle', 'mid', 'adc', 'support'];
 export const PlayerCards: React.FC = () => {
   const { data } = useMatch();
   const [comparePlayer, setComparePlayer] = useState<Player | null>(null);
+  const [anchorRect, setAnchorRect] = useState<DOMRect | null>(null);
 
   const { blueTeam, redTeam, players } = data;
 
@@ -357,14 +366,16 @@ export const PlayerCards: React.FC = () => {
   }, [players, blueTeam.id, redTeam.id, blueTeam.totalGold, redTeam.totalGold, comparePlayer]);
 
   const handleLongPress = useCallback(
-    (player: Player) => {
+    (player: Player, cardEl: HTMLElement) => {
       setComparePlayer(player);
+      setAnchorRect(cardEl.getBoundingClientRect());
     },
     []
   );
 
   const handleCloseCompare = useCallback(() => {
     setComparePlayer(null);
+    setAnchorRect(null);
   }, []);
 
   return (
@@ -449,10 +460,11 @@ export const PlayerCards: React.FC = () => {
       </div>
 
       <AnimatePresence>
-        {comparePair && (
+        {comparePair && anchorRect && (
           <PlayerCompare
             bluePlayer={comparePair.blue}
             redPlayer={comparePair.red}
+            anchorRect={anchorRect}
             onClose={handleCloseCompare}
           />
         )}
