@@ -376,7 +376,7 @@ export const generateIncrementalUpdate = (
   }
 
   if (Math.random() < 0.02 && updates.gameTime > currentData.gameTime) {
-    const eventTypes = ['kill', 'tower', 'dragon'] as const;
+    const eventTypes = ['kill', 'tower', 'dragon', 'herald', 'baron', 'teamfight'] as const;
     const randomType = eventTypes[Math.floor(Math.random() * eventTypes.length)];
     const teamSide = Math.random() > 0.5 ? 'blue' : 'red';
 
@@ -392,12 +392,21 @@ export const generateIncrementalUpdate = (
       dragon: [
         { title: '小龙刷新！', desc: '双方围绕小龙展开视野布置！' },
       ],
+      herald: [
+        { title: '峡谷先锋被控！', desc: '上单配合打野成功拿下先锋！' },
+      ],
+      baron: [
+        { title: '大龙争夺战！', desc: '队伍抓住机会成功RUSH大龙！' },
+      ],
+      teamfight: [
+        { title: '河道爆发团战！', desc: '双方在河道遭遇，团战一触即发！' },
+      ],
     };
 
     const list = eventDescriptions[randomType];
     const chosen = list[Math.floor(Math.random() * list.length)];
 
-    const snapBlue = {
+    let preSnapBlue = {
       kills: currentData.blueTeam.kills,
       deaths: currentData.blueTeam.deaths,
       assists: currentData.blueTeam.assists,
@@ -406,7 +415,7 @@ export const generateIncrementalUpdate = (
       barons: currentData.blueTeam.barons,
       heralds: currentData.blueTeam.heralds,
     };
-    const snapRed = {
+    let preSnapRed = {
       kills: currentData.redTeam.kills,
       deaths: currentData.redTeam.deaths,
       assists: currentData.redTeam.assists,
@@ -415,24 +424,6 @@ export const generateIncrementalUpdate = (
       barons: currentData.redTeam.barons,
       heralds: currentData.redTeam.heralds,
     };
-
-    const newEvent: MatchEvent = {
-      id: `e-${Date.now()}`,
-      type: randomType,
-      time: updates.gameTime,
-      timestamp: Date.now(),
-      title: chosen.title,
-      description: chosen.desc,
-      teamSide,
-      replayData: {
-        blueGold: currentData.blueTeam.totalGold,
-        redGold: currentData.redTeam.totalGold,
-        blueStats: snapBlue,
-        redStats: snapRed,
-      },
-    };
-
-    updates.events = [...currentData.events, newEvent];
 
     if (randomType === 'kill') {
       if (teamSide === 'blue') {
@@ -458,7 +449,132 @@ export const generateIncrementalUpdate = (
           deaths: (updates.blueTeam?.deaths ?? currentData.blueTeam.deaths) + 1,
         };
       }
+    } else if (randomType === 'tower') {
+      if (teamSide === 'blue') {
+        updates.blueTeam = {
+          ...currentData.blueTeam,
+          ...(updates.blueTeam || {}),
+          towers: (updates.blueTeam?.towers ?? currentData.blueTeam.towers) + 1,
+        };
+      } else {
+        updates.redTeam = {
+          ...currentData.redTeam,
+          ...(updates.redTeam || {}),
+          towers: (updates.redTeam?.towers ?? currentData.redTeam.towers) + 1,
+        };
+      }
+    } else if (randomType === 'dragon') {
+      if (teamSide === 'blue') {
+        updates.blueTeam = {
+          ...currentData.blueTeam,
+          ...(updates.blueTeam || {}),
+          dragons: (updates.blueTeam?.dragons ?? currentData.blueTeam.dragons) + 1,
+        };
+      } else {
+        updates.redTeam = {
+          ...currentData.redTeam,
+          ...(updates.redTeam || {}),
+          dragons: (updates.redTeam?.dragons ?? currentData.redTeam.dragons) + 1,
+        };
+      }
+    } else if (randomType === 'herald') {
+      if (teamSide === 'blue') {
+        updates.blueTeam = {
+          ...currentData.blueTeam,
+          ...(updates.blueTeam || {}),
+          heralds: (updates.blueTeam?.heralds ?? currentData.blueTeam.heralds) + 1,
+        };
+      } else {
+        updates.redTeam = {
+          ...currentData.redTeam,
+          ...(updates.redTeam || {}),
+          heralds: (updates.redTeam?.heralds ?? currentData.redTeam.heralds) + 1,
+        };
+      }
+    } else if (randomType === 'baron') {
+      if (teamSide === 'blue') {
+        updates.blueTeam = {
+          ...currentData.blueTeam,
+          ...(updates.blueTeam || {}),
+          barons: (updates.blueTeam?.barons ?? currentData.blueTeam.barons) + 1,
+        };
+      } else {
+        updates.redTeam = {
+          ...currentData.redTeam,
+          ...(updates.redTeam || {}),
+          barons: (updates.redTeam?.barons ?? currentData.redTeam.barons) + 1,
+        };
+      }
+    } else if (randomType === 'teamfight') {
+      const blueKills = teamSide === 'blue' ? 2 + Math.floor(Math.random() * 3) : Math.floor(Math.random() * 2);
+      const redKills = teamSide === 'red' ? 2 + Math.floor(Math.random() * 3) : Math.floor(Math.random() * 2);
+      updates.blueTeam = {
+        ...currentData.blueTeam,
+        ...(updates.blueTeam || {}),
+        kills: (updates.blueTeam?.kills ?? currentData.blueTeam.kills) + blueKills,
+        deaths: (updates.blueTeam?.deaths ?? currentData.blueTeam.deaths) + redKills,
+        assists: (updates.blueTeam?.assists ?? currentData.blueTeam.assists) + Math.floor(blueKills * 1.5),
+      };
+      updates.redTeam = {
+        ...currentData.redTeam,
+        ...(updates.redTeam || {}),
+        kills: (updates.redTeam?.kills ?? currentData.redTeam.kills) + redKills,
+        deaths: (updates.redTeam?.deaths ?? currentData.redTeam.deaths) + blueKills,
+        assists: (updates.redTeam?.assists ?? currentData.redTeam.assists) + Math.floor(redKills * 1.5),
+      };
     }
+
+    const snapBlue = {
+      kills: updates.blueTeam?.kills ?? preSnapBlue.kills,
+      deaths: updates.blueTeam?.deaths ?? preSnapBlue.deaths,
+      assists: (updates.blueTeam?.assists ?? preSnapBlue.assists),
+      towers: updates.blueTeam?.towers ?? preSnapBlue.towers,
+      dragons: updates.blueTeam?.dragons ?? preSnapBlue.dragons,
+      barons: updates.blueTeam?.barons ?? preSnapBlue.barons,
+      heralds: updates.blueTeam?.heralds ?? preSnapBlue.heralds,
+    };
+    const snapRed = {
+      kills: updates.redTeam?.kills ?? preSnapRed.kills,
+      deaths: updates.redTeam?.deaths ?? preSnapRed.deaths,
+      assists: (updates.redTeam?.assists ?? preSnapRed.assists),
+      towers: updates.redTeam?.towers ?? preSnapRed.towers,
+      dragons: updates.redTeam?.dragons ?? preSnapRed.dragons,
+      barons: updates.redTeam?.barons ?? preSnapRed.barons,
+      heralds: updates.redTeam?.heralds ?? preSnapRed.heralds,
+    };
+
+    const eventGoldBonus: Record<string, number> = {
+      kill: 300,
+      tower: 600,
+      dragon: 500,
+      baron: 1200,
+      herald: 400,
+      first_blood: 400,
+      teamfight: 900,
+      aces: 1500,
+      inhibitor: 800,
+    };
+    const goldBonus = eventGoldBonus[randomType] ?? 300;
+    const newBlueGold = (updates.blueTeam?.totalGold ?? currentData.blueTeam.totalGold) + (teamSide === 'blue' ? goldBonus : 0);
+    const newRedGold = (updates.redTeam?.totalGold ?? currentData.redTeam.totalGold) + (teamSide === 'red' ? goldBonus : 0);
+
+    const newEvent: MatchEvent = {
+      id: `e-${Date.now()}`,
+      type: randomType,
+      time: updates.gameTime,
+      timestamp: Date.now(),
+      title: chosen.title,
+      description: chosen.desc,
+      teamSide,
+      replayData: {
+        blueGold: newBlueGold,
+        redGold: newRedGold,
+        blueStats: snapBlue,
+        redStats: snapRed,
+      },
+    };
+
+    updates.events = [...currentData.events, newEvent];
   }
 
   return updates;

@@ -2,7 +2,7 @@ import React, { useRef, useEffect, useState, memo, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useMatch } from '../../context/MatchContext';
 import { formatEventTime, eventTypeToIcon, eventTypeToColor, formatGameTime, formatGoldDiff } from '../../utils/formatters';
-import type { MatchEvent, Team } from '../../types/match';
+import type { MatchEvent } from '../../types/match';
 
 interface EventItemProps {
   event: MatchEvent;
@@ -24,19 +24,28 @@ const GOLD_IMPACT_TYPES: readonly string[] = ['first_blood', 'kill', 'teamfight'
 const TOWER_IMPACT_TYPES: readonly string[] = ['tower', 'inhibitor'];
 const OBJECTIVE_IMPACT_TYPES: readonly string[] = ['dragon', 'baron', 'herald'];
 
+const INITIAL_GOLD_PER_TEAM = 500 * 5;
+const INITIAL_TEAM_STATS = {
+  kills: 0,
+  deaths: 0,
+  assists: 0,
+  towers: 0,
+  dragons: 0,
+  barons: 0,
+  heralds: 0,
+};
+
 const calculateEventImpact = (
   event: MatchEvent,
-  prevEvent: MatchEvent | null,
-  initialBlue: Team,
-  initialRed: Team
+  prevEvent: MatchEvent | null
 ): ImpactBadge | null => {
   const current = event.replayData;
   const prevGold = prevEvent
     ? { blue: prevEvent.replayData.blueGold, red: prevEvent.replayData.redGold }
-    : { blue: initialBlue.totalGold, red: initialRed.totalGold };
+    : { blue: INITIAL_GOLD_PER_TEAM, red: INITIAL_GOLD_PER_TEAM };
   const prevStats = prevEvent
     ? { blue: prevEvent.replayData.blueStats, red: prevEvent.replayData.redStats }
-    : { blue: initialBlue, red: initialRed };
+    : { blue: INITIAL_TEAM_STATS, red: INITIAL_TEAM_STATS };
 
   const currentGoldDiff = current.blueGold - current.redGold;
   const prevGoldDiff = prevGold.blue - prevGold.red;
@@ -46,6 +55,19 @@ const calculateEventImpact = (
     const isBlue = event.teamSide === 'blue';
     const sign = isBlue ? 1 : -1;
     const impact = goldDiffChange * sign;
+    if (impact === 0) {
+      const absoluteGain = isBlue
+        ? (current.blueGold - prevGold.blue)
+        : (current.redGold - prevGold.red);
+      if (absoluteGain > 0) {
+        return {
+          label: '经济',
+          value: formatGoldDiff(absoluteGain),
+          color: '#FFD700',
+          icon: '💰',
+        };
+      }
+    }
     return {
       label: '经济差',
       value: formatGoldDiff(impact),
@@ -55,12 +77,11 @@ const calculateEventImpact = (
   }
 
   if (TOWER_IMPACT_TYPES.includes(event.type)) {
+    const isBlue = event.teamSide === 'blue';
     const currentBlueTowers = current.blueStats.towers ?? 0;
     const currentRedTowers = current.redStats.towers ?? 0;
     const prevBlueTowers = prevStats.blue.towers ?? 0;
     const prevRedTowers = prevStats.red.towers ?? 0;
-    const towerDiffChange = (currentBlueTowers - currentRedTowers) - (prevBlueTowers - prevRedTowers);
-    const isBlue = event.teamSide === 'blue';
     const gained = isBlue ? (currentBlueTowers - prevBlueTowers) : (currentRedTowers - prevRedTowers);
     if (gained > 0) {
       return {
@@ -70,6 +91,7 @@ const calculateEventImpact = (
         icon: '🏰',
       };
     }
+    const towerDiffChange = (currentBlueTowers - currentRedTowers) - (prevBlueTowers - prevRedTowers);
     return {
       label: '塔差',
       value: formatGoldDiff(towerDiffChange),
@@ -93,9 +115,17 @@ const calculateEventImpact = (
     };
     const config = typeLabels[objType] || { label: '资源', color: '#FFD700', icon: '📌' };
 
+    if (gained > 0) {
+      return {
+        label: config.label,
+        value: `+${gained}`,
+        color: config.color,
+        icon: config.icon,
+      };
+    }
     return {
       label: config.label,
-      value: `+${gained}`,
+      value: '已刷新',
       color: config.color,
       icon: config.icon,
     };
@@ -227,10 +257,10 @@ export const EventTimeline: React.FC = () => {
   const eventsWithImpact = useMemo(() => {
     return sortedEvents.map((event, idx) => {
       const prevEvent = idx > 0 ? sortedEvents[idx - 1] : null;
-      const impactBadge = calculateEventImpact(event, prevEvent, data.blueTeam, data.redTeam);
+      const impactBadge = calculateEventImpact(event, prevEvent);
       return { event, impactBadge };
     });
-  }, [sortedEvents, data.blueTeam, data.redTeam]);
+  }, [sortedEvents]);
 
   const handleEventClick = (event: MatchEvent) => {
     if (selectedEventId === event.id) {
