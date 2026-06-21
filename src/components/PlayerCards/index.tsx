@@ -1,8 +1,9 @@
-import React, { useState, memo, useMemo } from 'react';
+import React, { useState, memo, useMemo, useRef, useCallback, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useMatch } from '../../context/MatchContext';
 import { useAnimatedNumber } from '../../hooks/useAnimatedNumber';
 import { formatGold, formatGoldDiff, formatKDA, roleToChinese } from '../../utils/formatters';
+import { PlayerCompare } from '../PlayerCompare';
 import type { Player, PlayerRole } from '../../types/match';
 
 interface PlayerCardProps {
@@ -10,6 +11,8 @@ interface PlayerCardProps {
   side: 'blue' | 'red';
   isLeading: boolean;
   index: number;
+  onLongPress?: (player: Player) => void;
+  isComparing?: boolean;
 }
 
 const AnimatedStat: React.FC<{ value: number; className?: string; format?: (v: number) => string; decimals?: number }> = memo(
@@ -25,8 +28,14 @@ const AnimatedStat: React.FC<{ value: number; className?: string; format?: (v: n
 
 AnimatedStat.displayName = 'AnimatedStat';
 
-const PlayerCard: React.FC<PlayerCardProps> = memo(({ player, side, isLeading, index }) => {
+const PlayerCard: React.FC<PlayerCardProps> = memo(({ player, side, isLeading, index, onLongPress, isComparing }) => {
   const [expanded, setExpanded] = useState(false);
+  const [pressProgress, setPressProgress] = useState(0);
+  const pressTimerRef = useRef<number | null>(null);
+  const pressStartTimeRef = useRef<number>(0);
+  const longPressTriggeredRef = useRef(false);
+  const LONG_PRESS_DURATION = 500;
+
   const isBlue = side === 'blue';
   const borderColor = isBlue ? 'rgba(0, 212, 255, ' : 'rgba(255, 51, 102, ';
   const textColor = isBlue ? 'text-esports-blue' : 'text-esports-red';
@@ -35,6 +44,64 @@ const PlayerCard: React.FC<PlayerCardProps> = memo(({ player, side, isLeading, i
   const kda = parseFloat(formatKDA(player.kills, player.deaths, player.assists));
 
   const staggerDelay = index * 0.03;
+
+  const clearPressTimer = useCallback(() => {
+    if (pressTimerRef.current !== null) {
+      cancelAnimationFrame(pressTimerRef.current);
+      pressTimerRef.current = null;
+    }
+    setPressProgress(0);
+    longPressTriggeredRef.current = false;
+  }, []);
+
+  const startPressTimer = useCallback(() => {
+    clearPressTimer();
+    pressStartTimeRef.current = performance.now();
+    longPressTriggeredRef.current = false;
+
+    const tick = () => {
+      const elapsed = performance.now() - pressStartTimeRef.current;
+      const progress = Math.min(elapsed / LONG_PRESS_DURATION, 1);
+      setPressProgress(progress);
+
+      if (progress >= 1 && !longPressTriggeredRef.current) {
+        longPressTriggeredRef.current = true;
+        if (onLongPress) {
+          onLongPress(player);
+        }
+        clearPressTimer();
+        return;
+      }
+
+      if (progress < 1) {
+        pressTimerRef.current = requestAnimationFrame(tick);
+      }
+    };
+
+    pressTimerRef.current = requestAnimationFrame(tick);
+  }, [player, onLongPress, clearPressTimer]);
+
+  const handleClick = useCallback((e: React.MouseEvent) => {
+    if (longPressTriggeredRef.current) {
+      e.preventDefault();
+      e.stopPropagation();
+      clearPressTimer();
+      return;
+    }
+    setExpanded(!expanded);
+  }, [expanded, clearPressTimer]);
+
+  const handleTouchStart = useCallback(() => {
+    startPressTimer();
+  }, [startPressTimer]);
+
+  const handleTouchEnd = useCallback(() => {
+    clearPressTimer();
+  }, [clearPressTimer]);
+
+  useEffect(() => {
+    return () => clearPressTimer();
+  }, [clearPressTimer]);
 
   return (
     <motion.div
@@ -45,16 +112,36 @@ const PlayerCard: React.FC<PlayerCardProps> = memo(({ player, side, isLeading, i
     >
       <motion.div
         layout
-        onClick={() => setExpanded(!expanded)}
+        onClick={handleClick}
+        onMouseDown={startPressTimer}
+        onMouseUp={clearPressTimer}
+        onMouseLeave={clearPressTimer}
+        onTouchStart={handleTouchStart}
+        onTouchEnd={handleTouchEnd}
+        onTouchCancel={handleTouchEnd}
         className={`relative cursor-pointer rounded-xl overflow-hidden transition-all duration-300 ${
           isLeading ? 'animate-pulse-glow' : ''
-        }`}
+        } ${isComparing ? 'ring-2 ring-esports-purple ring-offset-2 ring-offset-esports-bg scale-[1.02]' : ''}`}
         style={{
           color: isLeading ? '#00FFA3' : 'transparent',
         }}
         whileHover={{ y: -2 }}
         whileTap={{ scale: 0.98 }}
+        onContextMenu={(e) => e.preventDefault()}
       >
+        {pressProgress > 0 && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            className="absolute inset-0 z-20 pointer-events-none"
+          >
+            <div className="absolute inset-0 bg-esports-purple/30" />
+            <div className="absolute bottom-0 left-0 h-1 bg-esports-purple" style={{ width: `${pressProgress * 100}%` }} />
+            <div className="absolute top-2 right-2 px-2 py-0.5 bg-esports-purple text-white text-[9px] font-bold rounded-full">
+              ⏳ 长按对比
+            </div>
+          </motion.div>
+        )}
         <div
           className={`relative bg-gradient-to-br ${bgGlow} to-white/[0.02] border backdrop-blur-sm p-3 md:p-4 transition-all duration-300 ${
             isLeading
@@ -241,10 +328,11 @@ const ROLE_ORDER: PlayerRole[] = ['top', 'jungle', 'mid', 'adc', 'support'];
 
 export const PlayerCards: React.FC = () => {
   const { data } = useMatch();
+  const [comparePlayer, setComparePlayer] = useState<Player | null>(null);
 
   const { blueTeam, redTeam, players } = data;
 
-  const { bluePlayers, redPlayers, leadingTeam } = useMemo(() => {
+  const { bluePlayers, redPlayers, leadingTeam, comparePair } = useMemo(() => {
     const blue = players
       .filter((p) => p.teamId === blueTeam.id)
       .sort((a, b) => ROLE_ORDER.indexOf(a.role) - ROLE_ORDER.indexOf(b.role));
@@ -255,8 +343,29 @@ export const PlayerCards: React.FC = () => {
 
     const lead = blueTeam.totalGold > redTeam.totalGold ? 'blue' : redTeam.totalGold > blueTeam.totalGold ? 'red' : null;
 
-    return { bluePlayers: blue, redPlayers: red, leadingTeam: lead };
-  }, [players, blueTeam.id, redTeam.id, blueTeam.totalGold, redTeam.totalGold]);
+    let pair: { blue: Player; red: Player } | null = null;
+    if (comparePlayer) {
+      const sameRole = comparePlayer.role;
+      const blueP = blue.find((p) => p.role === sameRole);
+      const redP = red.find((p) => p.role === sameRole);
+      if (blueP && redP) {
+        pair = { blue: blueP, red: redP };
+      }
+    }
+
+    return { bluePlayers: blue, redPlayers: red, leadingTeam: lead, comparePair: pair };
+  }, [players, blueTeam.id, redTeam.id, blueTeam.totalGold, redTeam.totalGold, comparePlayer]);
+
+  const handleLongPress = useCallback(
+    (player: Player) => {
+      setComparePlayer(player);
+    },
+    []
+  );
+
+  const handleCloseCompare = useCallback(() => {
+    setComparePlayer(null);
+  }, []);
 
   return (
     <motion.div
@@ -295,6 +404,8 @@ export const PlayerCards: React.FC = () => {
               side="blue"
               isLeading={leadingTeam === 'blue' && player.goldDiff >= 0}
               index={idx}
+              onLongPress={handleLongPress}
+              isComparing={comparePlayer?.id === player.id}
             />
           ))}
         </div>
@@ -330,10 +441,22 @@ export const PlayerCards: React.FC = () => {
               side="red"
               isLeading={leadingTeam === 'red' && player.goldDiff >= 0}
               index={idx}
+              onLongPress={handleLongPress}
+              isComparing={comparePlayer?.id === player.id}
             />
           ))}
         </div>
       </div>
+
+      <AnimatePresence>
+        {comparePair && (
+          <PlayerCompare
+            bluePlayer={comparePair.blue}
+            redPlayer={comparePair.red}
+            onClose={handleCloseCompare}
+          />
+        )}
+      </AnimatePresence>
     </motion.div>
   );
 };
