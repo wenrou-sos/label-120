@@ -1,8 +1,8 @@
 import React, { useRef, useEffect, useState, memo, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useMatch } from '../../context/MatchContext';
-import { formatEventTime, eventTypeToIcon, eventTypeToColor, formatGameTime } from '../../utils/formatters';
-import type { MatchEvent } from '../../types/match';
+import { formatEventTime, eventTypeToIcon, eventTypeToColor, formatGameTime, formatGoldDiff } from '../../utils/formatters';
+import type { MatchEvent, Team } from '../../types/match';
 
 interface EventItemProps {
   event: MatchEvent;
@@ -10,9 +10,101 @@ interface EventItemProps {
   isNew: boolean;
   onClick: () => void;
   index: number;
+  impactBadge?: ImpactBadge | null;
 }
 
-const EventItem: React.FC<EventItemProps> = memo(({ event, isSelected, isNew, onClick, index }) => {
+interface ImpactBadge {
+  label: string;
+  value: string;
+  color: string;
+  icon: string;
+}
+
+const GOLD_IMPACT_TYPES: readonly string[] = ['first_blood', 'kill', 'teamfight', 'aces', 'surrender'];
+const TOWER_IMPACT_TYPES: readonly string[] = ['tower', 'inhibitor'];
+const OBJECTIVE_IMPACT_TYPES: readonly string[] = ['dragon', 'baron', 'herald'];
+
+const calculateEventImpact = (
+  event: MatchEvent,
+  prevEvent: MatchEvent | null,
+  initialBlue: Team,
+  initialRed: Team
+): ImpactBadge | null => {
+  const current = event.replayData;
+  const prevGold = prevEvent
+    ? { blue: prevEvent.replayData.blueGold, red: prevEvent.replayData.redGold }
+    : { blue: initialBlue.totalGold, red: initialRed.totalGold };
+  const prevStats = prevEvent
+    ? { blue: prevEvent.replayData.blueStats, red: prevEvent.replayData.redStats }
+    : { blue: initialBlue, red: initialRed };
+
+  const currentGoldDiff = current.blueGold - current.redGold;
+  const prevGoldDiff = prevGold.blue - prevGold.red;
+  const goldDiffChange = currentGoldDiff - prevGoldDiff;
+
+  if (GOLD_IMPACT_TYPES.includes(event.type)) {
+    const isBlue = event.teamSide === 'blue';
+    const sign = isBlue ? 1 : -1;
+    const impact = goldDiffChange * sign;
+    return {
+      label: '经济差',
+      value: formatGoldDiff(impact),
+      color: impact >= 0 ? '#00FFA3' : '#FF3366',
+      icon: '💰',
+    };
+  }
+
+  if (TOWER_IMPACT_TYPES.includes(event.type)) {
+    const currentBlueTowers = current.blueStats.towers ?? 0;
+    const currentRedTowers = current.redStats.towers ?? 0;
+    const prevBlueTowers = prevStats.blue.towers ?? 0;
+    const prevRedTowers = prevStats.red.towers ?? 0;
+    const towerDiffChange = (currentBlueTowers - currentRedTowers) - (prevBlueTowers - prevRedTowers);
+    const isBlue = event.teamSide === 'blue';
+    const gained = isBlue ? (currentBlueTowers - prevBlueTowers) : (currentRedTowers - prevRedTowers);
+    if (gained > 0) {
+      return {
+        label: '塔数',
+        value: `+${gained}`,
+        color: '#FFA500',
+        icon: '🏰',
+      };
+    }
+    return {
+      label: '塔差',
+      value: formatGoldDiff(towerDiffChange),
+      color: towerDiffChange >= 0 ? '#00D4FF' : '#FF3366',
+      icon: '🏰',
+    };
+  }
+
+  if (OBJECTIVE_IMPACT_TYPES.includes(event.type)) {
+    const isBlue = event.teamSide === 'blue';
+    const objType = event.type as 'dragon' | 'baron' | 'herald';
+    const statKey: 'dragons' | 'barons' | 'heralds' = objType === 'dragon' ? 'dragons' : objType === 'baron' ? 'barons' : 'heralds';
+    const currentCount = (isBlue ? current.blueStats : current.redStats)[statKey] ?? 0;
+    const prevCount = (isBlue ? prevStats.blue : prevStats.red)[statKey] ?? 0;
+    const gained = currentCount - prevCount;
+
+    const typeLabels: Record<string, { label: string; color: string; icon: string }> = {
+      dragon: { label: '小龙', color: '#00D4FF', icon: '🐉' },
+      baron: { label: '大龙', color: '#A855F7', icon: '👑' },
+      herald: { label: '先锋', color: '#00FFA3', icon: '📯' },
+    };
+    const config = typeLabels[objType] || { label: '资源', color: '#FFD700', icon: '📌' };
+
+    return {
+      label: config.label,
+      value: `+${gained}`,
+      color: config.color,
+      icon: config.icon,
+    };
+  }
+
+  return null;
+};
+
+const EventItem: React.FC<EventItemProps> = memo(({ event, isSelected, isNew, onClick, index, impactBadge }) => {
   const isBlue = event.teamSide === 'blue';
   const isRed = event.teamSide === 'red';
   const sideColor = isBlue ? '#00D4FF' : isRed ? '#FF3366' : '#94A3B8';
@@ -83,6 +175,23 @@ const EventItem: React.FC<EventItemProps> = memo(({ event, isSelected, isNew, on
         {event.description}
       </div>
 
+      {impactBadge && (
+        <div className="mt-2 flex items-center gap-1.5">
+          <div
+            className="flex items-center gap-1 px-2 py-1 rounded-lg font-bold font-display"
+            style={{
+              backgroundColor: `${impactBadge.color}15`,
+              border: `1px solid ${impactBadge.color}30`,
+              color: impactBadge.color,
+            }}
+          >
+            <span className="text-xs">{impactBadge.icon}</span>
+            <span className="text-[10px] opacity-80">{impactBadge.label}</span>
+            <span className="text-xs font-black number-display">{impactBadge.value}</span>
+          </div>
+        </div>
+      )}
+
       {(isBlue || isRed) && (
         <div className="mt-2 pt-2 border-t border-white/5 flex items-center justify-between">
           <span
@@ -114,6 +223,14 @@ export const EventTimeline: React.FC = () => {
   const sortedEvents = useMemo(() => {
     return [...data.events].sort((a, b) => a.time - b.time);
   }, [data.events]);
+
+  const eventsWithImpact = useMemo(() => {
+    return sortedEvents.map((event, idx) => {
+      const prevEvent = idx > 0 ? sortedEvents[idx - 1] : null;
+      const impactBadge = calculateEventImpact(event, prevEvent, data.blueTeam, data.redTeam);
+      return { event, impactBadge };
+    });
+  }, [sortedEvents, data.blueTeam, data.redTeam]);
 
   const handleEventClick = (event: MatchEvent) => {
     if (selectedEventId === event.id) {
@@ -246,7 +363,7 @@ export const EventTimeline: React.FC = () => {
                 <p className="text-sm">等待关键事件发生...</p>
               </div>
             ) : (
-              sortedEvents.map((event, index) => (
+              eventsWithImpact.map(({ event, impactBadge }, index) => (
                 <div
                   key={event.id}
                   data-event-id={event.id}
@@ -255,9 +372,10 @@ export const EventTimeline: React.FC = () => {
                   <EventItem
                     event={event}
                     isSelected={isReplayMode && replayEvent?.id === event.id}
-                    isNew={event.id === lastEventId && index === sortedEvents.length - 1}
+                    isNew={event.id === lastEventId && index === eventsWithImpact.length - 1}
                     onClick={() => handleEventClick(event)}
                     index={index}
+                    impactBadge={impactBadge}
                   />
                 </div>
               ))
